@@ -1,0 +1,51 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b44baace7d3f240a4af18d070b6ea1a0, type: 3}
+  m_Name: EnvironmentClassifierConfig
+  m_EditorClassIdentifier: 
+  m_profiles:
+  - EnvironmentName: Office
+    MinScore: 2
+    Rules:
+    - Label: laptop
+      Weight: 2
+    - Label: keyboard
+      Weight: 1
+    - Label: mouse
+      Weight: 1
+  - EnvironmentName: Kitchen
+    MinScore: 5
+    Rules:
+    - Label: fork
+      Weight: 1.5
+    - Label: spoon
+      Weight: 1
+    - Label: apple
+      Weight: 1
+    - Label: 'diningtable '
+      Weight: 1
+    - Label: refrigerator
+      Weight: 10
+  - EnvironmentName: Living Space
+    MinScore: 5
+    Rules:
+    - Label: sofa
+      Weight: 5
+    - Label: pottedplant
+      Weight: 1.5
+    - Label: chair
+      Weight: 1.5
+    - Label: book
+      Weight: 1.5
+    - Label: 'tvmonitor '
+      Weight: 1.5
+  m_unknownEnvironmentLabel: Unknown
