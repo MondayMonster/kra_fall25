@@ -22,6 +22,7 @@ MonoBehaviour:
     - UIEditorSetup
   immersiveDebuggerEnabled: 1
   immersiveDebuggerDisplayAtStartup: 0
+  enableOnlyInDebugBuild: 0
   showInspectors: 0
   showConsole: 0
   followOverride: 1
@@ -37,6 +38,7 @@ MonoBehaviour:
   panelLayer: 20
   meshRendererLayer: 21
   overlayDepth: 10
+  useOverlay: 1
   inspectedDataEnabled: 010101
   inspectedDataAssets:
   - {fileID: 11400000, guid: 77088e58ea680884d9b11e7455ce0456, type: 2}

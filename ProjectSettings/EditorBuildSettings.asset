@@ -5,6 +5,9 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
+  - enabled: 1
+    path: Assets/01_Scenes/00_SplashScene.unity
+    guid: 8b7ebb4b03d50489ba4f6923cae4d7e0
   - enabled: 0
     path: Assets/PassthroughCameraApiSamples/StartScene/StartScene.unity
     guid: 69e1b31c45bac42f88f75017ee404de1
@@ -17,7 +20,7 @@ EditorBuildSettings:
   - enabled: 0
     path: Assets/PassthroughCameraApiSamples/BrightnessEstimation/BrightnessEstimation.unity
     guid: 8ea13e682474e1748965f8e21972f2b2
-  - enabled: 1
+  - enabled: 0
     path: Assets/01_Scenes/01_ObjectDetection.unity
     guid: 20c230cce46443841b5727b1d6100bfc
   - enabled: 0
