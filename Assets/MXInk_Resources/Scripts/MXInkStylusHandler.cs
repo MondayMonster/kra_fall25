@@ -40,6 +40,32 @@ public class MXInkStylusHandler : MonoBehaviour
     public DetectionSpawnMarkerAnim CurrentHoveredMarker { get; private set; }
     public GameObject CurrentHoveredUI { get; private set; }
     private Button currentHoveredButton;
+    
+    // UI state tracking
+    private bool isUIActive = false;
+    
+    /// <summary>
+    /// Set whether UI is currently active (disables ray when true)
+    /// </summary>
+    public void SetUIActive(bool active)
+    {
+        isUIActive = active;
+        
+        if (active)
+        {
+            // Disable ray and reticle when UI is active
+            if (lineRenderer != null)
+                lineRenderer.enabled = false;
+            if (reticle != null)
+                reticle.SetActive(false);
+                
+            Debug.Log("[MXInkStylusHandler] UI active - ray disabled");
+        }
+        else
+        {
+            Debug.Log("[MXInkStylusHandler] UI closed - ray enabled");
+        }
+    }
 
     // Front button edge detection
     private bool prevClusterFrontValue;
@@ -52,6 +78,9 @@ public class MXInkStylusHandler : MonoBehaviour
     private bool prevMiddleDown;
     private const float MiddlePressThreshold   = 0.02f; // pressed above this
     private const float MiddleReleaseThreshold = 0.01f; // released below this
+    
+    // Expose middle button state for drawing
+    public bool IsMiddleButtonDown => prevMiddleDown;
 
     // Back button edge detection
     private bool prevClusterBackValue;
@@ -291,12 +320,18 @@ public class MXInkStylusHandler : MonoBehaviour
 
     private void UpdateUIPointer()
     {
-        if (lineRenderer == null || !stylus.isActive)
+        // Don't show pointer if UI is active or stylus is inactive
+        if (lineRenderer == null || !stylus.isActive || isUIActive)
         {
-            if (lineRenderer != null)
+            if (lineRenderer != null && lineRenderer.enabled)
+            {
                 lineRenderer.enabled = false;
-            if (reticle != null)
+                Debug.Log($"[MXInkStylusHandler] Ray DISABLED (isUIActive={isUIActive}, stylusActive={stylus.isActive})");
+            }
+            if (reticle != null && reticle.activeSelf)
+            {
                 reticle.SetActive(false);
+            }
             CurrentHitObject = null;
             CurrentHoveredMarker = null;
             CurrentHoveredUI = null;
@@ -304,7 +339,11 @@ public class MXInkStylusHandler : MonoBehaviour
             return;
         }
 
-        lineRenderer.enabled = true;
+        if (!lineRenderer.enabled)
+        {
+            lineRenderer.enabled = true;
+            Debug.Log("[MXInkStylusHandler] Ray ENABLED");
+        }
 
         Vector3 rayOrigin = RayOrigin;
         // Use the tip's negative up direction (flip 180 degrees)

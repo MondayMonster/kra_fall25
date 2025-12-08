@@ -23,6 +23,9 @@ public class MarkerUIController : MonoBehaviour
 
     private string currentObjectName;
     private string currentEnvironment;
+    
+    // Public property to access Spanish translation
+    public string SpanishTranslation { get; private set; }
 
     private void Start()
     {
@@ -88,6 +91,8 @@ public class MarkerUIController : MonoBehaviour
         if (response.success)
         {
             Debug.Log($"[MarkerUIController] Received data for {currentObjectName}");
+            
+            SpanishTranslation = response.spanishTranslation; // Store for Writer UI
             
             SetText(spanishTranslationText, response.spanishTranslation);
             SetText(simpleSentenceSpanishText, response.simpleSentenceSpanish);

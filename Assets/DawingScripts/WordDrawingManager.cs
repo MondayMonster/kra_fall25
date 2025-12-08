@@ -16,6 +16,24 @@ public class WordDrawingManager : MonoBehaviour
     [Header("Grab Settings")]
     [SerializeField] private float grabSphereRadius = 0.08f; // radius around tip to search for anchors
 
+    // Drawing control
+    private bool drawingEnabled = false;
+    
+    /// <summary>
+    /// Enable or disable drawing functionality. Should only be enabled when Writer UI is active.
+    /// </summary>
+    public void SetDrawingEnabled(bool enabled)
+    {
+        drawingEnabled = enabled;
+        Debug.Log($"[WordDrawingManager] Drawing {(enabled ? "ENABLED" : "DISABLED")}");
+        
+        // If disabling mid-stroke, end it
+        if (!enabled && isStrokeActive)
+        {
+            EndStroke();
+        }
+    }
+
     // --- Data class for a single word ---
     [System.Serializable]
     public class WordDrawing
@@ -43,8 +61,14 @@ public class WordDrawingManager : MonoBehaviour
     {
         if (stylus == null) return;
 
-        HandleDrawing();
-        HandleWordFinalize();
+        // Only allow drawing when Writer UI is active
+        if (drawingEnabled)
+        {
+            HandleDrawing();
+            HandleWordFinalize();
+        }
+
+        // Grabbing words is always available (even when not in Writer UI)
         HandleWordGrab();
 
         // Debug: visualize ray in Scene view
@@ -61,7 +85,8 @@ public class WordDrawingManager : MonoBehaviour
 
     private void HandleDrawing()
     {
-        if (stylus.IsTipDown)
+        // Changed from tip press to middle button press
+        if (stylus.IsMiddleButtonDown)
         {
             EnsureCurrentWord();
 
@@ -216,8 +241,9 @@ public class WordDrawingManager : MonoBehaviour
 
     private void HandleWordGrab()
     {
-        // Start grab when MIDDLE button pressed & not drawing
-        if (stylus.MiddleButtonPressedThisFrame && !isGrabbingWord && !stylus.IsTipDown)
+        // Start grab when MIDDLE button pressed & not already grabbing
+        // Note: This conflicts with drawing when Writer UI is active, so grabbing only works when drawing is disabled
+        if (stylus.MiddleButtonPressedThisFrame && !isGrabbingWord && !drawingEnabled)
         {
             Debug.Log("WordDrawingManager: Middle button press detected, trying to grab...");
             TryStartGrabWord();

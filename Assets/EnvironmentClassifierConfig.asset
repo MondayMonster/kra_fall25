@@ -23,7 +23,7 @@ MonoBehaviour:
     - Label: mouse
       Weight: 1
   - EnvironmentName: Kitchen
-    MinScore: 5
+    MinScore: 8
     Rules:
     - Label: fork
       Weight: 1.5
