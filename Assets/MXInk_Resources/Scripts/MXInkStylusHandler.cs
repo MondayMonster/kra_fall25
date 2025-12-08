@@ -1,4 +1,6 @@
 using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.EventSystems;
 using PassthroughCameraSamples.MultiObjectDetection;
 
 public class MXInkStylusHandler : MonoBehaviour
@@ -13,12 +15,31 @@ public class MXInkStylusHandler : MonoBehaviour
     [SerializeField] private GameObject rightController;
     [SerializeField] private DetectionManager detectionManager;
 
+    [Header("UI Pointer Settings")]
+    [SerializeField] private LineRenderer lineRenderer;
+    [SerializeField] private GameObject reticle;
+    [SerializeField] private float maxPointerDistance = 10f;
+    [SerializeField] private LayerMask pointerLayerMask = ~0; // Raycast against all layers (UI + Prefabs)
+    [SerializeField] private Color pointerColorDefault = new Color(1f, 1f, 1f, 0.5f);
+    [SerializeField] private Color pointerColorHover = new Color(0f, 1f, 1f, 0.8f);
+    [SerializeField] private float reticleHoverScale = 1.5f;
+
     public Color activeColor = Color.green;
     public Color activeColorFront = Color.red;
     public Color doubleTapActiveColor = Color.cyan;
     public Color defaultColor = Color.white;
 
     private StylusInputs stylus;
+
+    // UI Pointer state
+    private bool isHoveringUI;
+    private Vector3 reticleDefaultScale;
+    
+    // Expose currently hit object for interaction
+    public GameObject CurrentHitObject { get; private set; }
+    public DetectionSpawnMarkerAnim CurrentHoveredMarker { get; private set; }
+    public GameObject CurrentHoveredUI { get; private set; }
+    private Button currentHoveredButton;
 
     // Front button edge detection
     private bool prevClusterFrontValue;
@@ -63,6 +84,26 @@ public class MXInkStylusHandler : MonoBehaviour
     private const string MX_Ink_Haptic_Pulse = "haptic_pulse";
     private float hapticClickDuration = 0.011f;
     private float hapticClickAmplitude = 1.0f;
+
+    private void Start()
+    {
+        // Initialize pointer components
+        if (lineRenderer != null)
+        {
+            lineRenderer.positionCount = 2;
+            lineRenderer.startWidth = 0.002f;
+            lineRenderer.endWidth = 0.002f;
+            lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
+            lineRenderer.startColor = pointerColorDefault;
+            lineRenderer.endColor = pointerColorDefault;
+        }
+
+        if (reticle != null)
+        {
+            reticleDefaultScale = reticle.transform.localScale;
+            reticle.SetActive(false);
+        }
+    }
 
     private void UpdatePose()
     {
@@ -221,6 +262,112 @@ public class MXInkStylusHandler : MonoBehaviour
                 Debug.LogWarning("MXInkStylusHandler: DetectionManager reference is not set.");
             }
         }
+
+        // Update UI pointer
+        UpdateUIPointer();
+    }
+
+    private void UpdateUIPointer()
+    {
+        if (lineRenderer == null || !stylus.isActive)
+        {
+            if (lineRenderer != null)
+                lineRenderer.enabled = false;
+            if (reticle != null)
+                reticle.SetActive(false);
+            CurrentHitObject = null;
+            CurrentHoveredMarker = null;
+            CurrentHoveredUI = null;
+            currentHoveredButton = null;
+            return;
+        }
+
+        lineRenderer.enabled = true;
+
+        Vector3 rayOrigin = RayOrigin;
+        // Use the tip's negative up direction (flip 180 degrees)
+        Vector3 rayDirection = (tip != null ? -tip.transform.up : (RayRotation * Vector3.forward));
+
+        // Set line start position
+        lineRenderer.SetPosition(0, rayOrigin);
+
+        // Perform raycast for both 3D objects and UI
+        RaycastHit hit;
+        bool hit3D = Physics.Raycast(rayOrigin, rayDirection, out hit, maxPointerDistance, pointerLayerMask);
+
+        if (hit3D)
+        {
+            // Hit something - position line and reticle at hit point
+            lineRenderer.SetPosition(1, hit.point);
+            
+            // Track what we hit
+            CurrentHitObject = hit.collider.gameObject;
+            // Check for marker component on hit object or its parents
+            CurrentHoveredMarker = hit.collider.GetComponentInParent<DetectionSpawnMarkerAnim>();
+            // Check if we hit a UI element (Canvas with GraphicRaycaster)
+            CurrentHoveredUI = hit.collider.GetComponentInParent<Canvas>() != null ? hit.collider.gameObject : null;
+            currentHoveredButton = hit.collider.GetComponentInParent<Button>();
+            
+            // Debug: Log when hovering a marker
+            if (CurrentHoveredMarker != null && Time.frameCount % 30 == 0)
+            {
+                string className = CurrentHoveredMarker.GetYoloClassName();
+                Debug.Log($"[MXInkStylusHandler] Hovering marker: '{className}' (empty={string.IsNullOrEmpty(className)}) on GameObject: {hit.collider.gameObject.name}");
+            }
+            else if (currentHoveredButton != null && Time.frameCount % 30 == 0)
+            {
+                Debug.Log($"[MXInkStylusHandler] Hovering UI Button: {currentHoveredButton.name}");
+            }
+            else if (Time.frameCount % 30 == 0)
+            {
+                Debug.Log($"[MXInkStylusHandler] Hit object: {hit.collider.gameObject.name}, marker: {(CurrentHoveredMarker != null)}, UI: {(CurrentHoveredUI != null)}");
+            }
+            
+            if (reticle != null)
+            {
+                reticle.SetActive(true);
+                reticle.transform.position = hit.point;
+                reticle.transform.rotation = Quaternion.LookRotation(hit.normal);
+                reticle.transform.localScale = reticleDefaultScale * reticleHoverScale;
+            }
+
+            // Change color based on what we're hovering
+            Color hoverColor;
+            if (CurrentHoveredMarker != null)
+                hoverColor = Color.yellow; // Marker = yellow
+            else if (currentHoveredButton != null)
+                hoverColor = Color.green;  // UI Button = green
+            else if (CurrentHoveredUI != null)
+                hoverColor = Color.cyan;   // Other UI = cyan
+            else
+                hoverColor = pointerColorHover; // Default hover
+                
+            lineRenderer.startColor = hoverColor;
+            lineRenderer.endColor = hoverColor;
+            isHoveringUI = true;
+        }
+        else
+        {
+            // No hit - extend line to max distance
+            Vector3 endPoint = rayOrigin + rayDirection * maxPointerDistance;
+            lineRenderer.SetPosition(1, endPoint);
+            
+            // Clear tracked objects
+            CurrentHitObject = null;
+            CurrentHoveredMarker = null;
+            CurrentHoveredUI = null;
+            currentHoveredButton = null;
+
+            if (reticle != null)
+            {
+                reticle.SetActive(false);
+            }
+
+            // Reset to default color
+            lineRenderer.startColor = pointerColorDefault;
+            lineRenderer.endColor = pointerColorDefault;
+            isHoveringUI = false;
+        }
     }
 
     public void TriggerHapticPulse(float amplitude, float duration)
@@ -234,5 +381,20 @@ public class MXInkStylusHandler : MonoBehaviour
     public void TriggerHapticClick()
     {
         TriggerHapticPulse(hapticClickAmplitude, hapticClickDuration);
+    }
+
+    /// <summary>
+    /// Trigger a UI button click if hovering over one
+    /// </summary>
+    public bool TriggerUIButtonClick()
+    {
+        if (currentHoveredButton != null && currentHoveredButton.interactable)
+        {
+            Debug.Log($"[MXInkStylusHandler] Clicking UI button: {currentHoveredButton.name}");
+            currentHoveredButton.onClick.Invoke();
+            TriggerHapticClick();
+            return true;
+        }
+        return false;
     }
 }

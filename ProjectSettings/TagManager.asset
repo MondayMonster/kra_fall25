@@ -3,12 +3,20 @@
 --- !u!78 &1
 TagManager:
   serializedVersion: 2
-  tags: []
+  tags:
+  - QDSUIBackplateGradient
+  - QDSUISecondaryButton
+  - QDSUIPrimaryButton
+  - QDSUISharedThemeColor
+  - QDSUIAccentColor
+  - QDSUITextInvertedColor
+  - QDSUIIcon
+  - QDSUITextSecondaryInvertedColor
   layers:
   - Default
   - TransparentFX
   - Ignore Raycast
-  - 
+  - Overlay UI
   - Water
   - UI
   - 

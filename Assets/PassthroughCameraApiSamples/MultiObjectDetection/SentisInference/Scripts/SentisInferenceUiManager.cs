@@ -100,7 +100,7 @@ namespace PassthroughCameraSamples.MultiObjectDetection
                 OnObjectsDetected?.Invoke(0);
                 return;
             }
-            var maxBoxes = Mathf.Min(boxesFound, 200);
+            var maxBoxes = Mathf.Min(boxesFound, 3);
 
             OnObjectsDetected?.Invoke(maxBoxes);
 
@@ -141,7 +141,7 @@ namespace PassthroughCameraSamples.MultiObjectDetection
                 BoxDrawn.Add(box);
 
                 // Draw 2D box
-                DrawBox(box, n);
+                //DrawBox(box, n);
             }
         }
 

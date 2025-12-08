@@ -27,6 +27,10 @@ namespace PassthroughCameraSamples.MultiObjectDetection
         [SerializeField] private EnvironmentRayCastSampleManager m_environmentRaycast;
         [SerializeField] private float m_spawnDistance = 0.25f;
         [SerializeField] private AudioSource m_placeSound;
+        
+        [Header("Marker Interaction")]
+        [SerializeField] private GameObject m_markerUIPrefab; // UI to spawn at marker location
+        [SerializeField] private Vector3 m_uiSpawnOffset = new Vector3(0, 0.2f, 0);
 
         [Header("Sentis inference ref")]
         [SerializeField] private SentisInferenceRunManager m_runInference;
@@ -88,7 +92,37 @@ namespace PassthroughCameraSamples.MultiObjectDetection
             {                
                 Debug.Log($"A Button Released: {aButtonReleased}, Stylus Front Released: {stylusFrontReleased}, Delay Time: {m_delayPauseBackTime}");
 
-                SpwanCurrentDetectedObjects();
+                // Priority 1: Try to click UI button with front button
+                if (m_stylusHandler != null && stylusFrontReleased && m_stylusHandler.TriggerUIButtonClick())
+                {
+                    Debug.Log("[DetectionManager] UI button clicked via front button");
+                }
+                // Priority 2: Spawn markers
+                else
+                {
+                    SpwanCurrentDetectedObjects();
+                }
+            }
+            
+            // Check if back button pressed while hovering a marker or UI
+            if (m_stylusHandler != null && m_stylusHandler.BackButtonPressedThisFrame)
+            {
+                Debug.Log($"[DetectionManager] Back button pressed. Hovered marker: {(m_stylusHandler.CurrentHoveredMarker != null ? m_stylusHandler.CurrentHoveredMarker.GetYoloClassName() : "none")}, Hovered UI: {(m_stylusHandler.CurrentHoveredUI != null ? m_stylusHandler.CurrentHoveredUI.name : "none")}");
+                
+                // Priority 1: Try to click UI button
+                if (m_stylusHandler.TriggerUIButtonClick())
+                {
+                    Debug.Log("[DetectionManager] UI button clicked via back button");
+                }
+                // Priority 2: Interact with marker
+                else if (m_stylusHandler.CurrentHoveredMarker != null)
+                {
+                    OnMarkerInteraction(m_stylusHandler.CurrentHoveredMarker);
+                }
+                else
+                {
+                    Debug.Log("[DetectionManager] Back button pressed but no marker or UI hovered");
+                }
             }
                 if (OVRInput.GetUp(m_classifyButton) || Input.GetKeyUp(KeyCode.B))
                 {
@@ -219,6 +253,10 @@ namespace PassthroughCameraSamples.MultiObjectDetection
                 // Play sound if a new marker is placed.
                 m_placeSound.Play();
             }
+            if (count == 3){
+                m_isPaused = true;
+            }
+
             OnObjectsIdentified?.Invoke(count);
         }
 
@@ -261,6 +299,85 @@ namespace PassthroughCameraSamples.MultiObjectDetection
             }
 
             return !existMarker;
+        }
+        #endregion
+
+        #region Marker Interaction Functions
+        /// <summary>
+        /// Called when a marker is interacted with via the stylus back button
+        /// </summary>
+        private void OnMarkerInteraction(DetectionSpawnMarkerAnim marker)
+        {
+            Debug.Log($"[DetectionManager] === Marker Interaction Started ===");
+            Debug.Log($"[DetectionManager] Marker class: {marker.GetYoloClassName()}");
+            
+            // Get marker position
+            Vector3 markerPosition = marker.transform.position;
+            Debug.Log($"[DetectionManager] Marker position: {markerPosition}");
+            
+            // Hide all markers
+            HideAllMarkers();
+            
+            // Spawn UI at marker location
+            if (m_markerUIPrefab != null)
+            {
+                Vector3 spawnPos = markerPosition + m_uiSpawnOffset;
+                GameObject ui = Instantiate(m_markerUIPrefab, spawnPos, Quaternion.identity);
+                
+                // Optional: Make UI face the camera
+                var cam = FindFirstObjectByType<OVRCameraRig>();
+                if (cam != null)
+                {
+                    ui.transform.LookAt(cam.centerEyeAnchor);
+                    ui.transform.Rotate(0, 180, 0); // Face the camera
+                }
+                
+                Debug.Log($"[DetectionManager] ✓ UI spawned at {spawnPos} for marker: {marker.GetYoloClassName()}");
+            }
+            else
+            {
+                Debug.LogWarning("[DetectionManager] ✗ Marker UI Prefab is not assigned!");
+            }
+            
+            // Haptic feedback
+            if (m_stylusHandler != null)
+            {
+                m_stylusHandler.TriggerHapticClick();
+                Debug.Log("[DetectionManager] Haptic feedback triggered");
+            }
+            
+            Debug.Log($"[DetectionManager] === Marker Interaction Complete ===");
+        }
+        
+        /// <summary>
+        /// Hide all spawned markers
+        /// </summary>
+        private void HideAllMarkers()
+        {
+            int hiddenCount = 0;
+            foreach (var entity in m_spwanedEntities)
+            {
+                if (entity != null)
+                {
+                    entity.SetActive(false);
+                    hiddenCount++;
+                }
+            }
+            Debug.Log($"[DetectionManager] Hidden {hiddenCount} out of {m_spwanedEntities.Count} markers");
+        }
+        
+        /// <summary>
+        /// Show all spawned markers (optional, for toggling)
+        /// </summary>
+        public void ShowAllMarkers()
+        {
+            foreach (var entity in m_spwanedEntities)
+            {
+                if (entity != null)
+                {
+                    entity.SetActive(true);
+                }
+            }
         }
         #endregion
 
