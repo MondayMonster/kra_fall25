@@ -57,6 +57,11 @@ public class MXInkStylusHandler : MonoBehaviour
     private bool prevClusterBackValue;
     public bool BackButtonPressedThisFrame   { get; private set; }
     public bool BackButtonReleasedThisFrame  { get; private set; }
+    
+    // Back button double-click detection
+    private float lastBackButtonPressTime = -1f;
+    private const float DoubleClickTimeWindow = 0.3f; // 300ms window for double-click
+    public bool BackButtonDoubleClickedThisFrame { get; private set; }
 
     // Expose stylus pose & tip state for other systems (WordDrawingManager)
     public Vector3 StylusPosition  => stylus.inkingPose.position;
@@ -184,6 +189,23 @@ public class MXInkStylusHandler : MonoBehaviour
         BackButtonPressedThisFrame   =  stylus.clusterBackValue && !prevClusterBackValue;
         BackButtonReleasedThisFrame  = !stylus.clusterBackValue &&  prevClusterBackValue;
         prevClusterBackValue         =  stylus.clusterBackValue;
+        
+        // Back button double-click detection
+        BackButtonDoubleClickedThisFrame = false;
+        if (BackButtonPressedThisFrame)
+        {
+            float currentTime = Time.time;
+            if (lastBackButtonPressTime > 0 && (currentTime - lastBackButtonPressTime) <= DoubleClickTimeWindow)
+            {
+                BackButtonDoubleClickedThisFrame = true;
+                Debug.Log("[MXInkStylusHandler] Back button DOUBLE-CLICKED!");
+                lastBackButtonPressTime = -1f; // Reset to prevent triple-click
+            }
+            else
+            {
+                lastBackButtonPressTime = currentTime;
+            }
+        }
 
         // Middle (from analog force, with hysteresis)
         bool middleDown;
@@ -202,19 +224,19 @@ public class MXInkStylusHandler : MonoBehaviour
         MiddleButtonReleasedThisFrame = !middleDown &&  prevMiddleDown;
         prevMiddleDown                =  middleDown;
 
-        // DEBUG: middle input
-        if (Time.frameCount % 30 == 0)
-        {
-            Debug.Log($"MXInkStylusHandler: middle force={stylus.clusterMiddleValue:F3}, middleDown={middleDown}");
-        }
-        if (MiddleButtonPressedThisFrame)
-        {
-            Debug.Log("MXInkStylusHandler: MiddleButtonPressedThisFrame TRUE");
-        }
-        if (MiddleButtonReleasedThisFrame)
-        {
-            Debug.Log("MXInkStylusHandler: MiddleButtonReleasedThisFrame TRUE");
-        }
+        // DEBUG: middle input (disabled for testing)
+        // if (Time.frameCount % 30 == 0)
+        // {
+        //     Debug.Log($"MXInkStylusHandler: middle force={stylus.clusterMiddleValue:F3}, middleDown={middleDown}");
+        // }
+        // if (MiddleButtonPressedThisFrame)
+        // {
+        //     Debug.Log("MXInkStylusHandler: MiddleButtonPressedThisFrame TRUE");
+        // }
+        // if (MiddleButtonReleasedThisFrame)
+        // {
+        //     Debug.Log("MXInkStylusHandler: MiddleButtonReleasedThisFrame TRUE");
+        // }
 
         // Any input active?
         stylus.any = stylus.tipValue > 0 || stylus.clusterFrontValue ||
@@ -308,20 +330,20 @@ public class MXInkStylusHandler : MonoBehaviour
             CurrentHoveredUI = hit.collider.GetComponentInParent<Canvas>() != null ? hit.collider.gameObject : null;
             currentHoveredButton = hit.collider.GetComponentInParent<Button>();
             
-            // Debug: Log when hovering a marker
-            if (CurrentHoveredMarker != null && Time.frameCount % 30 == 0)
-            {
-                string className = CurrentHoveredMarker.GetYoloClassName();
-                Debug.Log($"[MXInkStylusHandler] Hovering marker: '{className}' (empty={string.IsNullOrEmpty(className)}) on GameObject: {hit.collider.gameObject.name}");
-            }
-            else if (currentHoveredButton != null && Time.frameCount % 30 == 0)
-            {
-                Debug.Log($"[MXInkStylusHandler] Hovering UI Button: {currentHoveredButton.name}");
-            }
-            else if (Time.frameCount % 30 == 0)
-            {
-                Debug.Log($"[MXInkStylusHandler] Hit object: {hit.collider.gameObject.name}, marker: {(CurrentHoveredMarker != null)}, UI: {(CurrentHoveredUI != null)}");
-            }
+            // Debug: Log when hovering (disabled for testing)
+            // if (CurrentHoveredMarker != null && Time.frameCount % 30 == 0)
+            // {
+            //     string className = CurrentHoveredMarker.GetYoloClassName();
+            //     Debug.Log($"[MXInkStylusHandler] Hovering marker: '{className}' (empty={string.IsNullOrEmpty(className)}) on GameObject: {hit.collider.gameObject.name}");
+            // }
+            // else if (currentHoveredButton != null && Time.frameCount % 30 == 0)
+            // {
+            //     Debug.Log($"[MXInkStylusHandler] Hovering UI Button: {currentHoveredButton.name}");
+            // }
+            // else if (Time.frameCount % 30 == 0)
+            // {
+            //     Debug.Log($"[MXInkStylusHandler] Hit object: {hit.collider.gameObject.name}, marker: {(CurrentHoveredMarker != null)}, UI: {(CurrentHoveredUI != null)}");
+            // }
             
             if (reticle != null)
             {

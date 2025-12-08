@@ -43,6 +43,7 @@ namespace PassthroughCameraSamples.MultiObjectDetection
 
         private bool m_isPaused = true;
         private List<GameObject> m_spwanedEntities = new();
+        private GameObject m_currentSpawnedUI; // Track the currently spawned UI
         private bool m_isStarted = false;
         private bool m_isSentisReady = false;
         private float m_delayPauseBackTime = 0;
@@ -90,7 +91,7 @@ namespace PassthroughCameraSamples.MultiObjectDetection
 
             if ((aButtonReleased || stylusFrontReleased) && m_delayPauseBackTime <= 0)
             {                
-                Debug.Log($"A Button Released: {aButtonReleased}, Stylus Front Released: {stylusFrontReleased}, Delay Time: {m_delayPauseBackTime}");
+                // Debug.Log($"A Button Released: {aButtonReleased}, Stylus Front Released: {stylusFrontReleased}, Delay Time: {m_delayPauseBackTime}");
 
                 // Priority 1: Try to click UI button with front button
                 if (m_stylusHandler != null && stylusFrontReleased && m_stylusHandler.TriggerUIButtonClick())
@@ -107,7 +108,7 @@ namespace PassthroughCameraSamples.MultiObjectDetection
             // Check if back button pressed while hovering a marker or UI
             if (m_stylusHandler != null && m_stylusHandler.BackButtonPressedThisFrame)
             {
-                Debug.Log($"[DetectionManager] Back button pressed. Hovered marker: {(m_stylusHandler.CurrentHoveredMarker != null ? m_stylusHandler.CurrentHoveredMarker.GetYoloClassName() : "none")}, Hovered UI: {(m_stylusHandler.CurrentHoveredUI != null ? m_stylusHandler.CurrentHoveredUI.name : "none")}");
+                // Debug.Log($"[DetectionManager] Back button pressed. Hovered marker: {(m_stylusHandler.CurrentHoveredMarker != null ? m_stylusHandler.CurrentHoveredMarker.GetYoloClassName() : "none")}, Hovered UI: {(m_stylusHandler.CurrentHoveredUI != null ? m_stylusHandler.CurrentHoveredUI.name : "none")}");
                 
                 // Priority 1: Try to click UI button
                 if (m_stylusHandler.TriggerUIButtonClick())
@@ -119,9 +120,22 @@ namespace PassthroughCameraSamples.MultiObjectDetection
                 {
                     OnMarkerInteraction(m_stylusHandler.CurrentHoveredMarker);
                 }
-                else
+                // else
+                // {
+                //     Debug.Log("[DetectionManager] Back button pressed but no marker or UI hovered");
+                // }
+            }
+            
+            // Check for back button double-click to close UI and show markers
+            if (m_stylusHandler != null && m_stylusHandler.BackButtonDoubleClickedThisFrame)
+            {
+                if (m_currentSpawnedUI != null)
                 {
-                    Debug.Log("[DetectionManager] Back button pressed but no marker or UI hovered");
+                    Debug.Log("[DetectionManager] Back button double-clicked - closing UI and showing markers");
+                    Destroy(m_currentSpawnedUI);
+                    m_currentSpawnedUI = null;
+                    ShowAllMarkers();
+                    m_stylusHandler.TriggerHapticClick();
                 }
             }
                 if (OVRInput.GetUp(m_classifyButton) || Input.GetKeyUp(KeyCode.B))
@@ -308,12 +322,11 @@ namespace PassthroughCameraSamples.MultiObjectDetection
         /// </summary>
         private void OnMarkerInteraction(DetectionSpawnMarkerAnim marker)
         {
-            Debug.Log($"[DetectionManager] === Marker Interaction Started ===");
-            Debug.Log($"[DetectionManager] Marker class: {marker.GetYoloClassName()}");
+            string objectName = marker.GetYoloClassName();
+            Debug.Log($"[DetectionManager] === Interacting with marker: {objectName} ===");
             
             // Get marker position
             Vector3 markerPosition = marker.transform.position;
-            Debug.Log($"[DetectionManager] Marker position: {markerPosition}");
             
             // Hide all markers
             HideAllMarkers();
@@ -324,6 +337,9 @@ namespace PassthroughCameraSamples.MultiObjectDetection
                 Vector3 spawnPos = markerPosition + m_uiSpawnOffset;
                 GameObject ui = Instantiate(m_markerUIPrefab, spawnPos, Quaternion.identity);
                 
+                // Track the spawned UI
+                m_currentSpawnedUI = ui;
+                
                 // Optional: Make UI face the camera
                 var cam = FindFirstObjectByType<OVRCameraRig>();
                 if (cam != null)
@@ -332,7 +348,17 @@ namespace PassthroughCameraSamples.MultiObjectDetection
                     ui.transform.Rotate(0, 180, 0); // Face the camera
                 }
                 
-                Debug.Log($"[DetectionManager] ✓ UI spawned at {spawnPos} for marker: {marker.GetYoloClassName()}");
+                // Initialize UI with object name and environment
+                var uiController = ui.GetComponent<MarkerUIController>();
+                if (uiController != null)
+                {
+                    Debug.Log($"[DetectionManager] Requesting GPT data: object='{objectName}', environment='{m_currentEnvironment}'");
+                    uiController.Initialize(objectName, m_currentEnvironment);
+                }
+                else
+                {
+                    Debug.LogWarning("[DetectionManager] MarkerUIController component not found on UI prefab!");
+                }
             }
             else
             {
@@ -343,10 +369,7 @@ namespace PassthroughCameraSamples.MultiObjectDetection
             if (m_stylusHandler != null)
             {
                 m_stylusHandler.TriggerHapticClick();
-                Debug.Log("[DetectionManager] Haptic feedback triggered");
             }
-            
-            Debug.Log($"[DetectionManager] === Marker Interaction Complete ===");
         }
         
         /// <summary>
@@ -363,7 +386,7 @@ namespace PassthroughCameraSamples.MultiObjectDetection
                     hiddenCount++;
                 }
             }
-            Debug.Log($"[DetectionManager] Hidden {hiddenCount} out of {m_spwanedEntities.Count} markers");
+            // Debug.Log($"[DetectionManager] Hidden {hiddenCount} markers");
         }
         
         /// <summary>
