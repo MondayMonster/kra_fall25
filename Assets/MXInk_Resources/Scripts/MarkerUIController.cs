@@ -18,8 +18,13 @@ public class MarkerUIController : MonoBehaviour
     [SerializeField] private GameObject loadingIndicator;
     [SerializeField] private Button closeButton;
 
+    [Header("TTS Configuration")]
+    [SerializeField] private float delayBetweenSpeech = 2f; // Delay between each speech in sequence
+
     [Header("Service References")]
     [SerializeField] private GPTLanguageService gptService;
+    [SerializeField] private TTSManager ttsManager;
+    [SerializeField] private MXInkStylusHandler stylusHandler;
 
     private string currentObjectName;
     private string currentEnvironment;
@@ -35,10 +40,28 @@ public class MarkerUIController : MonoBehaviour
             closeButton.onClick.AddListener(OnCloseButtonClicked);
         }
 
-        // Find GPT service if not assigned
+        // Find services if not assigned
         if (gptService == null)
         {
             gptService = FindFirstObjectByType<GPTLanguageService>();
+        }
+        if (ttsManager == null)
+        {
+            ttsManager = FindFirstObjectByType<TTSManager>();
+        }
+        if (stylusHandler == null)
+        {
+            stylusHandler = FindFirstObjectByType<MXInkStylusHandler>();
+        }
+    }
+
+    private void Update()
+    {
+        // Check for front button press to speak all Spanish texts
+        // Only allow TTS when this UI is active and enabled
+        if (stylusHandler != null && stylusHandler.FrontButtonPressedThisFrame && gameObject.activeInHierarchy)
+        {
+            SpeakAllSpanishTexts();
         }
     }
 
@@ -123,6 +146,32 @@ public class MarkerUIController : MonoBehaviour
             textComponent.text = text;
         }
     }
+
+    #region TTS Speech
+
+    /// <summary>
+    /// Speak all texts sequentially in Spanish using OpenAI TTS
+    /// Speaks: Spanish translation word, Spanish simple sentence, Spanish positional sentence
+    /// </summary>
+    private void SpeakAllSpanishTexts()
+    {
+        if (ttsManager == null)
+        {
+            Debug.LogWarning("[MarkerUIController] Cannot speak - TTS Manager missing");
+            return;
+        }
+
+        // Speak Spanish texts: pronunciation, simple sentence Spanish, positional sentence Spanish
+        string[] textsToSpeak = new string[3];
+        textsToSpeak[0] = SpanishTranslation; // Spanish word pronunciation
+        textsToSpeak[1] = simpleSentenceSpanishText != null ? simpleSentenceSpanishText.text : "";
+        textsToSpeak[2] = positionalSentenceSpanishText != null ? positionalSentenceSpanishText.text : "";
+
+        Debug.Log($"[MarkerUIController] Front button pressed - speaking Spanish texts with {delayBetweenSpeech}s delay");
+        ttsManager.SpeakSequence(textsToSpeak, delayBetweenSpeech);
+    }
+
+    #endregion
 
     private void OnCloseButtonClicked()
     {

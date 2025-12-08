@@ -149,6 +149,14 @@ namespace PassthroughCameraSamples.MultiObjectDetection
                         // Get Spanish translation before destroying
                         m_currentSpanishWord = markerUI.SpanishTranslation ?? "unknown";
                         
+                        // Stop any TTS speech before transitioning to Writer UI
+                        var ttsManager = FindFirstObjectByType<TTSManager>();
+                        if (ttsManager != null)
+                        {
+                            ttsManager.StopSpeaking();
+                            Debug.Log("[DetectionManager] Stopped TTS speech before opening Writer UI");
+                        }
+                        
                         Destroy(m_currentSpawnedUI);
                         m_currentSpawnedUI = null;
                         
