@@ -30,7 +30,8 @@ namespace PassthroughCameraSamples.MultiObjectDetection
         
         [Header("Marker Interaction")]
         [SerializeField] private GameObject m_markerUIPrefab; // UI to spawn at marker location
-        [SerializeField] private GameObject m_writerUIPrefab; // Writer UI to spawn after closing marker UI
+        [SerializeField] private GameObject m_practiceUIPrefab; // Practice UI for speech recognition
+        [SerializeField] private GameObject m_writerUIPrefab; // Writer UI to spawn after closing practice UI
         [SerializeField] private WordDrawingManager m_wordDrawingManager; // Reference to drawing manager
         [SerializeField] private Vector3 m_uiSpawnOffset = new Vector3(0, 0.2f, 0);
 
@@ -130,65 +131,6 @@ namespace PassthroughCameraSamples.MultiObjectDetection
                 // }
             }
             
-            // Check for back button double-click to close UI and show markers
-            if (m_stylusHandler != null && m_stylusHandler.BackButtonDoubleClickedThisFrame)
-            {
-                if (m_currentSpawnedUI != null)
-                {
-                    // Check what type of UI is currently showing
-                    var markerUI = m_currentSpawnedUI.GetComponent<MarkerUIController>();
-                    var writerUI = m_currentSpawnedUI.GetComponent<WriterUIController>();
-                    
-                    if (markerUI != null)
-                    {
-                        // Close Marker UI and open Writer UI
-                        Debug.Log("[DetectionManager] Back button double-clicked - closing Marker UI and opening Writer UI");
-                        Vector3 uiPosition = m_currentSpawnedUI.transform.position;
-                        Quaternion uiRotation = m_currentSpawnedUI.transform.rotation;
-                        
-                        // Get Spanish translation before destroying
-                        m_currentSpanishWord = markerUI.SpanishTranslation ?? "unknown";
-                        
-                        // Stop any TTS speech before transitioning to Writer UI
-                        var ttsManager = FindFirstObjectByType<TTSManager>();
-                        if (ttsManager != null)
-                        {
-                            ttsManager.StopSpeaking();
-                            Debug.Log("[DetectionManager] Stopped TTS speech before opening Writer UI");
-                        }
-                        
-                        Destroy(m_currentSpawnedUI);
-                        m_currentSpawnedUI = null;
-                        
-                        // Spawn Writer UI at the same location
-                        SpawnWriterUI(uiPosition, uiRotation);
-                        m_stylusHandler.TriggerHapticClick();
-                    }
-                    else if (writerUI != null)
-                    {
-                        // Close Writer UI and show all markers
-                        Debug.Log("[DetectionManager] Back button double-clicked - closing Writer UI and showing markers");
-                        
-                        // Disable drawing
-                        if (m_wordDrawingManager != null)
-                        {
-                            m_wordDrawingManager.SetDrawingEnabled(false);
-                        }
-                        
-                        Destroy(m_currentSpawnedUI);
-                        m_currentSpawnedUI = null;
-                        ShowAllMarkers();
-                        
-                        // Re-enable stylus ray
-                        if (m_stylusHandler != null)
-                        {
-                            m_stylusHandler.SetUIActive(false);
-                        }
-                        
-                        m_stylusHandler.TriggerHapticClick();
-                    }
-                }
-            }
                 if (OVRInput.GetUp(m_classifyButton) || Input.GetKeyUp(KeyCode.B))
                 {
                     ClassifyCurrentEnvironment();
@@ -379,51 +321,15 @@ namespace PassthroughCameraSamples.MultiObjectDetection
             // Get marker position
             Vector3 markerPosition = marker.transform.position;
             
-            // Hide all markers
-            HideAllMarkers();
-            
-            // Spawn UI at marker location
-            if (m_markerUIPrefab != null)
+            // Start the object overlay workflow via ObjectOverlayManager
+            var overlayManager = FindFirstObjectByType<ObjectOverlayManager>();
+            if (overlayManager != null)
             {
-                Vector3 spawnPos = markerPosition + m_uiSpawnOffset;
-                GameObject ui = Instantiate(m_markerUIPrefab, spawnPos, Quaternion.identity);
-                
-                // Track the spawned UI
-                m_currentSpawnedUI = ui;
-                
-                // Optional: Make UI face the camera
-                var cam = FindFirstObjectByType<OVRCameraRig>();
-                if (cam != null)
-                {
-                    ui.transform.LookAt(cam.centerEyeAnchor);
-                    ui.transform.Rotate(0, 180, 0); // Face the camera
-                }
-                
-                // Initialize UI with object name and environment
-                var uiController = ui.GetComponent<MarkerUIController>();
-                if (uiController != null)
-                {
-                    Debug.Log($"[DetectionManager] Requesting GPT data: object='{objectName}', environment='{m_currentEnvironment}'");
-                    
-                    // Store current object info for Writer UI
-                    m_currentObjectName = objectName;
-                    
-                    uiController.Initialize(objectName, m_currentEnvironment);
-                    
-                    // Disable stylus ray when UI is active
-                    if (m_stylusHandler != null)
-                    {
-                        m_stylusHandler.SetUIActive(true);
-                    }
-                }
-                else
-                {
-                    Debug.LogWarning("[DetectionManager] MarkerUIController component not found on UI prefab!");
-                }
+                overlayManager.StartWorkflow(objectName, m_currentEnvironment, markerPosition);
             }
             else
             {
-                Debug.LogWarning("[DetectionManager] ✗ Marker UI Prefab is not assigned!");
+                Debug.LogError("[DetectionManager] ObjectOverlayManager not found! Cannot start workflow.");
             }
             
             // Haptic feedback
@@ -436,7 +342,7 @@ namespace PassthroughCameraSamples.MultiObjectDetection
         /// <summary>
         /// Hide all spawned markers
         /// </summary>
-        private void HideAllMarkers()
+        public void HideAllMarkers()
         {
             int hiddenCount = 0;
             foreach (var entity in m_spwanedEntities)
@@ -465,37 +371,7 @@ namespace PassthroughCameraSamples.MultiObjectDetection
         }
         #endregion
 
-        #region Writer UI Functions
-        /// <summary>
-        /// Spawn the Writer UI at specified position
-        /// </summary>
-        private void SpawnWriterUI(Vector3 position, Quaternion rotation)
-        {
-            if (m_writerUIPrefab == null)
-            {
-                Debug.LogWarning("[DetectionManager] Writer UI Prefab is not assigned!");
-                return;
-            }
-
-            GameObject writerUI = Instantiate(m_writerUIPrefab, position, rotation);
-            m_currentSpawnedUI = writerUI;
-
-            var writerController = writerUI.GetComponent<WriterUIController>();
-            if (writerController != null)
-            {
-                writerController.Initialize(m_currentObjectName, m_currentSpanishWord, m_wordDrawingManager);
-                Debug.Log($"[DetectionManager] Writer UI spawned for: {m_currentObjectName} ({m_currentSpanishWord})");
-                
-                // Ray stays disabled, but writing with middle button is now enabled
-                // The WordDrawingManager will check IsMiddleButtonDown instead of IsTipDown
-            }
-            else
-            {
-                Debug.LogWarning("[DetectionManager] WriterUIController component not found on Writer UI prefab!");
-            }
-        }
-        #endregion
-
+        
         #region Public Functions
         /// <summary>
         /// Pause the detection logic when the pause menu is active

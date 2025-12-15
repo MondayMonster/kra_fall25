@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using PassthroughCameraSamples.MultiObjectDetection;
+using System.Collections.Generic;
 
 public class MXInkStylusHandler : MonoBehaviour
 {
@@ -14,6 +15,9 @@ public class MXInkStylusHandler : MonoBehaviour
     [SerializeField] private GameObject leftController;
     [SerializeField] private GameObject rightController;
     [SerializeField] private DetectionManager detectionManager;
+    
+    [Header("UI Raycasting")]
+    [SerializeField] private EventSystem eventSystem;
 
     [Header("UI Pointer Settings")]
     [SerializeField] private LineRenderer lineRenderer;
@@ -40,6 +44,7 @@ public class MXInkStylusHandler : MonoBehaviour
     public DetectionSpawnMarkerAnim CurrentHoveredMarker { get; private set; }
     public GameObject CurrentHoveredUI { get; private set; }
     private Button currentHoveredButton;
+    private Button previousHoveredButton; // Track for enter/exit events
     
     // UI state tracking
     private bool isUIActive = false;
@@ -335,7 +340,7 @@ public class MXInkStylusHandler : MonoBehaviour
             CurrentHitObject = null;
             CurrentHoveredMarker = null;
             CurrentHoveredUI = null;
-            currentHoveredButton = null;
+            HandleButtonHoverExit(); // Clear button hover
             return;
         }
 
@@ -367,22 +372,40 @@ public class MXInkStylusHandler : MonoBehaviour
             CurrentHoveredMarker = hit.collider.GetComponentInParent<DetectionSpawnMarkerAnim>();
             // Check if we hit a UI element (Canvas with GraphicRaycaster)
             CurrentHoveredUI = hit.collider.GetComponentInParent<Canvas>() != null ? hit.collider.gameObject : null;
-            currentHoveredButton = hit.collider.GetComponentInParent<Button>();
             
-            // Debug: Log when hovering (disabled for testing)
-            // if (CurrentHoveredMarker != null && Time.frameCount % 30 == 0)
-            // {
-            //     string className = CurrentHoveredMarker.GetYoloClassName();
-            //     Debug.Log($"[MXInkStylusHandler] Hovering marker: '{className}' (empty={string.IsNullOrEmpty(className)}) on GameObject: {hit.collider.gameObject.name}");
-            // }
-            // else if (currentHoveredButton != null && Time.frameCount % 30 == 0)
-            // {
-            //     Debug.Log($"[MXInkStylusHandler] Hovering UI Button: {currentHoveredButton.name}");
-            // }
-            // else if (Time.frameCount % 30 == 0)
-            // {
-            //     Debug.Log($"[MXInkStylusHandler] Hit object: {hit.collider.gameObject.name}, marker: {(CurrentHoveredMarker != null)}, UI: {(CurrentHoveredUI != null)}");
-            // }
+            // If we hit a canvas, use GraphicRaycaster to find the specific UI element
+            Button detectedButton = null;
+            if (CurrentHoveredUI != null)
+            {
+                Debug.Log($"[UI_DETECT] Hit UI object: {CurrentHoveredUI.name}");
+                Canvas canvas = hit.collider.GetComponentInParent<Canvas>();
+                if (canvas != null)
+                {
+                    Debug.Log($"[UI_DETECT] Found canvas: {canvas.name}, has GraphicRaycaster: {canvas.GetComponent<GraphicRaycaster>() != null}");
+                    detectedButton = RaycastUI(canvas, rayOrigin, rayDirection);
+                    Debug.Log($"[UI_DETECT] RaycastUI returned button: {(detectedButton != null ? detectedButton.name : "NULL")}");
+                }
+                else
+                {
+                    Debug.Log("[UI_DETECT] No canvas found in parent hierarchy");
+                }
+            }
+            else
+            {
+                if (Time.frameCount % 60 == 0) // Log every 60 frames to avoid spam
+                {
+                    Debug.Log($"[UI_DETECT] Not hitting UI. Hit object: {hit.collider.name}");
+                }
+            }
+            
+            // Update button hover state
+            if (detectedButton != currentHoveredButton)
+            {
+                Debug.Log($"[BUTTON_HOVER] Button changed from {(currentHoveredButton != null ? currentHoveredButton.name : "NULL")} to {(detectedButton != null ? detectedButton.name : "NULL")}");
+                HandleButtonHoverExit();
+                currentHoveredButton = detectedButton;
+                HandleButtonHoverEnter();
+            }
             
             if (reticle != null)
             {
@@ -417,7 +440,7 @@ public class MXInkStylusHandler : MonoBehaviour
             CurrentHitObject = null;
             CurrentHoveredMarker = null;
             CurrentHoveredUI = null;
-            currentHoveredButton = null;
+            HandleButtonHoverExit(); // Clear button hover
 
             if (reticle != null)
             {
@@ -429,6 +452,127 @@ public class MXInkStylusHandler : MonoBehaviour
             lineRenderer.endColor = pointerColorDefault;
             isHoveringUI = false;
         }
+    }
+    
+    /// <summary>
+    /// Raycast against UI elements using direct RectTransform check
+    /// For World Space canvases, we use Physics raycast + manual UI element detection
+    /// </summary>
+    private Button RaycastUI(Canvas canvas, Vector3 rayOrigin, Vector3 rayDirection)
+    {
+        Debug.Log($"[RAYCAST_UI] Starting UI raycast for canvas: {canvas.name}");
+        
+        // Find EventSystem if not assigned
+        if (eventSystem == null)
+        {
+            eventSystem = EventSystem.current;
+            if (eventSystem == null)
+            {
+                Debug.LogWarning("[RAYCAST_UI] No EventSystem found in scene!");
+                return null;
+            }
+            Debug.Log($"[RAYCAST_UI] EventSystem auto-found: {eventSystem.name}");
+        }
+        
+        // Get the physics hit point
+        RaycastHit hit;
+        if (!Physics.Raycast(rayOrigin, rayDirection, out hit, maxPointerDistance))
+        {
+            Debug.Log("[RAYCAST_UI] No physics hit for UI raycast");
+            return null;
+        }
+        
+        Debug.Log($"[RAYCAST_UI] Physics hit at: {hit.point}, object: {hit.collider.name}");
+        
+        // Get the hit point in world space
+        Vector3 worldHitPoint = hit.point;
+        
+        // Convert world hit point to canvas local coordinates
+        RectTransform canvasRect = canvas.GetComponent<RectTransform>();
+        Vector2 localPoint;
+        
+        // Use RectTransformUtility to convert world point to local canvas coordinates
+        bool converted = RectTransformUtility.ScreenPointToLocalPointInRectangle(
+            canvasRect,
+            worldHitPoint,  // World space point
+            null,           // No camera for World Space canvas
+            out localPoint
+        );
+        
+        Debug.Log($"[RAYCAST_UI] World hit: {worldHitPoint}, Converted: {converted}, Local point: {localPoint}");
+        
+        // Find all buttons in the canvas
+        Button[] buttons = canvas.GetComponentsInChildren<Button>();
+        Debug.Log($"[RAYCAST_UI] Found {buttons.Length} buttons in canvas");
+        
+        // Check which button contains the local point
+        foreach (Button button in buttons)
+        {
+            if (!button.interactable)
+            {
+                Debug.Log($"[RAYCAST_UI] Button {button.name} not interactable, skipping");
+                continue;
+            }
+            
+            RectTransform buttonRect = button.GetComponent<RectTransform>();
+            if (buttonRect == null)
+            {
+                Debug.Log($"[RAYCAST_UI] Button {button.name} has no RectTransform");
+                continue;
+            }
+            
+            // Convert button local position to canvas local coordinates
+            Vector2 buttonLocalPoint = canvasRect.InverseTransformPoint(buttonRect.position);
+            Rect buttonLocalRect = new Rect(
+                buttonLocalPoint.x - buttonRect.rect.width * buttonRect.pivot.x,
+                buttonLocalPoint.y - buttonRect.rect.height * buttonRect.pivot.y,
+                buttonRect.rect.width,
+                buttonRect.rect.height
+            );
+            
+            Debug.Log($"[RAYCAST_UI] Checking button {button.name}: local rect {buttonLocalRect}, hit point {localPoint}, contains: {buttonLocalRect.Contains(localPoint)}");
+            
+            // Check if the local hit point is within the button's rect
+            if (buttonLocalRect.Contains(localPoint))
+            {
+                Debug.Log($"[RAYCAST_UI] ✓ Hit button: {button.name}");
+                return button;
+            }
+        }
+        
+        Debug.Log("[RAYCAST_UI] No button contains the hit point");
+        return null;
+    }
+    
+    /// <summary>
+    /// Handle button hover enter event
+    /// </summary>
+    private void HandleButtonHoverEnter()
+    {
+        if (currentHoveredButton != null && currentHoveredButton != previousHoveredButton)
+        {
+            // Trigger pointer enter event
+            ExecuteEvents.Execute(currentHoveredButton.gameObject, new PointerEventData(eventSystem), ExecuteEvents.pointerEnterHandler);
+            
+            Debug.Log($"[MXInkStylusHandler] Button HOVER ENTER: {currentHoveredButton.name}");
+            previousHoveredButton = currentHoveredButton;
+        }
+    }
+    
+    /// <summary>
+    /// Handle button hover exit event
+    /// </summary>
+    private void HandleButtonHoverExit()
+    {
+        if (previousHoveredButton != null)
+        {
+            // Trigger pointer exit event
+            ExecuteEvents.Execute(previousHoveredButton.gameObject, new PointerEventData(eventSystem), ExecuteEvents.pointerExitHandler);
+            
+            Debug.Log($"[MXInkStylusHandler] Button HOVER EXIT: {previousHoveredButton.name}");
+            previousHoveredButton = null;
+        }
+        currentHoveredButton = null;
     }
 
     public void TriggerHapticPulse(float amplitude, float duration)
@@ -449,13 +593,17 @@ public class MXInkStylusHandler : MonoBehaviour
     /// </summary>
     public bool TriggerUIButtonClick()
     {
+        Debug.Log($"[MXInkStylusHandler] TriggerUIButtonClick called. Current hovered button: {(currentHoveredButton != null ? currentHoveredButton.name : "NULL")}");
+        
         if (currentHoveredButton != null && currentHoveredButton.interactable)
         {
-            Debug.Log($"[MXInkStylusHandler] Clicking UI button: {currentHoveredButton.name}");
+            Debug.Log($"[MXInkStylusHandler] ✓ Clicking UI button: {currentHoveredButton.name}");
             currentHoveredButton.onClick.Invoke();
             TriggerHapticClick();
             return true;
         }
+        
+        Debug.Log("[MXInkStylusHandler] ✗ No button to click (either null or not interactable)");
         return false;
     }
 }

@@ -11,10 +11,13 @@ public class WriterUIController : MonoBehaviour
     [Header("UI References")]
     [SerializeField] private TextMeshProUGUI fixedText;
     [SerializeField] private TextMeshProUGUI pronunciationText;
-    [SerializeField] private Button closeButton;
+    [SerializeField] private Button closeButton;  // Closes workflow and returns to gameplay
 
     private string currentObjectName;
     private WordDrawingManager drawingManager;
+    
+    // Event for workflow completion
+    public System.Action OnCloseClicked;
 
     private void Start()
     {
@@ -55,29 +58,15 @@ public class WriterUIController : MonoBehaviour
 
     private void OnCloseButtonClicked()
     {
-        Debug.Log("[WriterUIController] Close button clicked");
-        CloseAndShowMarkers();
-    }
-
-    /// <summary>
-    /// Close the Writer UI and show all markers
-    /// </summary>
-    public void CloseAndShowMarkers()
-    {
-        // Disable drawing
+        Debug.Log("[WriterUIController] Close button clicked - finalizing drawing and ending workflow");
+        
+        // Finalize and anchor any current drawing
         if (drawingManager != null)
         {
+            drawingManager.FinalizeCurrentDrawing();
             drawingManager.SetDrawingEnabled(false);
         }
         
-        // Show markers again
-        var detectionManager = FindFirstObjectByType<PassthroughCameraSamples.MultiObjectDetection.DetectionManager>();
-        if (detectionManager != null)
-        {
-            detectionManager.ShowAllMarkers();
-        }
-
-        // Destroy this UI
-        Destroy(gameObject);
+        OnCloseClicked?.Invoke();
     }
 }

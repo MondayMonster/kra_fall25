@@ -12,6 +12,8 @@ public class TTSManager : MonoBehaviour
     [SerializeField] private string openAIApiKey = ""; // Set your OpenAI API key here
     [SerializeField] private string voiceModel = "tts-1"; // or "tts-1-hd" for higher quality
     [SerializeField] private string voiceName = "nova"; // nova, alloy, echo, fable, onyx, shimmer
+    [Range(0.25f, 4.0f)]
+    [SerializeField] private float speechSpeed = 0.85f; // 0.25-4.0, default 1.0, lower = slower
     
     [Header("Audio Feedback")]
     [SerializeField] private bool logSpeechEvents = true;
@@ -76,7 +78,8 @@ public class TTSManager : MonoBehaviour
         string jsonPayload = $@"{{
             ""model"": ""{voiceModel}"",
             ""input"": ""{EscapeJson(text)}"",
-            ""voice"": ""{voiceName}""
+            ""voice"": ""{voiceName}"",
+            ""speed"": {speechSpeed.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}
         }}";
 
         byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(jsonPayload);

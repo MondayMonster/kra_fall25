@@ -34,6 +34,22 @@ public class WordDrawingManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Finalize and anchor the current drawing (called when closing Writer UI)
+    /// </summary>
+    public void FinalizeCurrentDrawing()
+    {
+        if (currentWord != null && currentWord.strokes.Count > 0)
+        {
+            Debug.Log("[WordDrawingManager] Finalizing current drawing from UI close button");
+            TryFinalizeCurrentWord();
+        }
+        else
+        {
+            Debug.Log("[WordDrawingManager] No drawing to finalize");
+        }
+    }
+
     // --- Data class for a single word ---
     [System.Serializable]
     public class WordDrawing

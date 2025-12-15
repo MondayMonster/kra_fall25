@@ -16,7 +16,12 @@ public class MarkerUIController : MonoBehaviour
     [SerializeField] private TextMeshProUGUI positionalSentenceSpanishText;
     [SerializeField] private TextMeshProUGUI positionalSentenceEnglishText;
     [SerializeField] private GameObject loadingIndicator;
-    [SerializeField] private Button closeButton;
+    
+    [Header("Buttons")]
+    [SerializeField] private Button playPronunciationButton;   // Play pronunciation TTS
+    [SerializeField] private Button playSimpleSentenceButton;  // Play simple sentence TTS
+    [SerializeField] private Button playPositionalButton;      // Play positional sentence TTS
+    [SerializeField] private Button nextButton;                // Go to Speaker UI
 
     [Header("TTS Configuration")]
     [SerializeField] private float delayBetweenSpeech = 2f; // Delay between each speech in sequence
@@ -31,14 +36,24 @@ public class MarkerUIController : MonoBehaviour
     
     // Public property to access Spanish translation
     public string SpanishTranslation { get; private set; }
+    
+    // Event for workflow progression
+    public System.Action OnNextClicked;
 
     private void Start()
     {
-        // Hook up close button
-        if (closeButton != null)
-        {
-            closeButton.onClick.AddListener(OnCloseButtonClicked);
-        }
+        // Hook up button listeners
+        if (playPronunciationButton != null)
+            playPronunciationButton.onClick.AddListener(OnPlayPronunciationClicked);
+        
+        if (playSimpleSentenceButton != null)
+            playSimpleSentenceButton.onClick.AddListener(OnPlaySimpleSentenceClicked);
+        
+        if (playPositionalButton != null)
+            playPositionalButton.onClick.AddListener(OnPlayPositionalClicked);
+        
+        if (nextButton != null)
+            nextButton.onClick.AddListener(OnNextButtonClicked);
 
         // Find services if not assigned
         if (gptService == null)
@@ -52,16 +67,6 @@ public class MarkerUIController : MonoBehaviour
         if (stylusHandler == null)
         {
             stylusHandler = FindFirstObjectByType<MXInkStylusHandler>();
-        }
-    }
-
-    private void Update()
-    {
-        // Check for front button press to speak all Spanish texts
-        // Only allow TTS when this UI is active and enabled
-        if (stylusHandler != null && stylusHandler.FrontButtonPressedThisFrame && gameObject.activeInHierarchy)
-        {
-            SpeakAllSpanishTexts();
         }
     }
 
@@ -150,10 +155,9 @@ public class MarkerUIController : MonoBehaviour
     #region TTS Speech
 
     /// <summary>
-    /// Speak all texts sequentially in Spanish using OpenAI TTS
-    /// Speaks: Spanish translation word, Spanish simple sentence, Spanish positional sentence
+    /// Play pronunciation (Spanish translation word only)
     /// </summary>
-    private void SpeakAllSpanishTexts()
+    private void OnPlayPronunciationClicked()
     {
         if (ttsManager == null)
         {
@@ -161,38 +165,61 @@ public class MarkerUIController : MonoBehaviour
             return;
         }
 
-        // Speak Spanish texts: pronunciation, simple sentence Spanish, positional sentence Spanish
-        string[] textsToSpeak = new string[3];
-        textsToSpeak[0] = SpanishTranslation; // Spanish word pronunciation
-        textsToSpeak[1] = simpleSentenceSpanishText != null ? simpleSentenceSpanishText.text : "";
-        textsToSpeak[2] = positionalSentenceSpanishText != null ? positionalSentenceSpanishText.text : "";
+        if (!string.IsNullOrEmpty(SpanishTranslation))
+        {
+            Debug.Log($"[MarkerUIController] Playing pronunciation: {SpanishTranslation}");
+            ttsManager.SpeakSpanish(SpanishTranslation);
+        }
+    }
 
-        Debug.Log($"[MarkerUIController] Front button pressed - speaking Spanish texts with {delayBetweenSpeech}s delay");
-        ttsManager.SpeakSequence(textsToSpeak, delayBetweenSpeech);
+    /// <summary>
+    /// Play simple sentence in Spanish
+    /// </summary>
+    private void OnPlaySimpleSentenceClicked()
+    {
+        if (ttsManager == null)
+        {
+            Debug.LogWarning("[MarkerUIController] Cannot speak - TTS Manager missing");
+            return;
+        }
+
+        if (simpleSentenceSpanishText != null && !string.IsNullOrEmpty(simpleSentenceSpanishText.text))
+        {
+            Debug.Log($"[MarkerUIController] Playing simple sentence: {simpleSentenceSpanishText.text}");
+            ttsManager.SpeakSpanish(simpleSentenceSpanishText.text);
+        }
+    }
+
+    /// <summary>
+    /// Play positional sentence in Spanish
+    /// </summary>
+    private void OnPlayPositionalClicked()
+    {
+        if (ttsManager == null)
+        {
+            Debug.LogWarning("[MarkerUIController] Cannot speak - TTS Manager missing");
+            return;
+        }
+
+        if (positionalSentenceSpanishText != null && !string.IsNullOrEmpty(positionalSentenceSpanishText.text))
+        {
+            Debug.Log($"[MarkerUIController] Playing positional sentence: {positionalSentenceSpanishText.text}");
+            ttsManager.SpeakSpanish(positionalSentenceSpanishText.text);
+        }
     }
 
     #endregion
 
-    private void OnCloseButtonClicked()
-    {
-        Debug.Log("[MarkerUIController] Close button clicked");
-        
-        // Show markers again
-        var detectionManager = FindFirstObjectByType<PassthroughCameraSamples.MultiObjectDetection.DetectionManager>();
-        if (detectionManager != null)
-        {
-            detectionManager.ShowAllMarkers();
-        }
-
-        // Destroy this UI (DetectionManager will handle clearing m_currentSpawnedUI reference)
-        Destroy(gameObject);
-    }
+    #region Button Handlers
 
     /// <summary>
-    /// Public method to close UI (can be called from stylus interaction)
+    /// Handle Next button click - transition to Speaker UI
     /// </summary>
-    public void CloseUI()
+    private void OnNextButtonClicked()
     {
-        OnCloseButtonClicked();
+        Debug.Log("[MarkerUIController] Next button clicked - triggering workflow transition");
+        OnNextClicked?.Invoke();
     }
+
+    #endregion
 }
